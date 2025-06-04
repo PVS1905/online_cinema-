@@ -2,11 +2,12 @@ import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import String, Float, Text, DECIMAL, UniqueConstraint, Date, ForeignKey, Table, Column
+from sqlalchemy import String, Float, Text, DECIMAL, UniqueConstraint, Date, ForeignKey, Table, Column, Integer
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 from sqlalchemy import Enum as SQLAlchemyEnum
-
+from sqlalchemy.dialects.postgresql import UUID
 from database import Base
+import uuid
 
 
 class MovieStatusEnum(str, Enum):
@@ -14,6 +15,16 @@ class MovieStatusEnum(str, Enum):
     POST_PRODUCTION = "Post Production"
     IN_PRODUCTION = "In Production"
 
+DirectorMoviesModel = Table(
+    "director_movies",
+    Base.metadata,
+    Column(
+        "movie_id",
+        ForeignKey("movies.id", ondelete="CASCADE"), primary_key=True, nullable=False),
+    Column(
+        "director_id",
+        ForeignKey("directors.id", ondelete="CASCADE"), primary_key=True, nullable=False),
+)
 
 MoviesGenresModel = Table(
     "movies_genres",
@@ -43,6 +54,37 @@ MoviesLanguagesModel = Table(
     Column("movie_id", ForeignKey("movies.id", ondelete="CASCADE"), primary_key=True),
     Column("language_id", ForeignKey("languages.id", ondelete="CASCADE"), primary_key=True),
 )
+
+
+class DirectorModel(Base):
+    __tablename__ = "directors"
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+
+    movies: Mapped[list["MovieModel"]] = relationship(
+        "MovieModel",
+        secondary=DirectorMoviesModel,
+        back_populates="directors"
+    )
+
+    def __repr__(self):
+        return f"<Director(name='{self.name}')>"
+
+    @classmethod
+    def default_order_by(cls):
+        return [cls.id.desc()]
+
+
+class Certification(Base):
+    __tablename__ = "certifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+
+    movies: Mapped[list["MovieModel"]] = relationship(
+        "MovieModel",
+        back_populates="certification"
+    )
 
 
 class GenreModel(Base):
@@ -110,16 +152,29 @@ class MovieModel(Base):
     __tablename__ = "movies"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    uuid = Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    year: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    time: Mapped[int] = mapped_column(Integer, nullable=False)
+    imdb: Mapped[float] = mapped_column(Float, nullable=False)
+    votes: Mapped[int] = mapped_column(Integer, nullable=False)
+    meta_score: Mapped[float] = mapped_column(Float, nullable=True)
     score: Mapped[float] = mapped_column(Float, nullable=False)
     overview: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[MovieStatusEnum] = mapped_column(
         SQLAlchemyEnum(MovieStatusEnum), nullable=False
     )
     budget: Mapped[float] = mapped_column(DECIMAL(15, 2), nullable=False)
-    revenue: Mapped[float] = mapped_column(Float, nullable=False)
+    gross: Mapped[float] = mapped_column(Float, nullable=False)
 
+    certification_id: Mapped[int] = mapped_column(ForeignKey("certifications.id"), nullable=False)
+    certification: Mapped["Certification"] = relationship("Certification", back_populates="movies")
+
+    directors: Mapped[list["DirectorModel"]] = relationship(
+        "DirectorModel",
+        secondary=DirectorMoviesModel,
+        back_populates="movies"
+    )
     country_id: Mapped[int] = mapped_column(ForeignKey("countries.id"), nullable=False)
     country: Mapped["CountryModel"] = relationship("CountryModel", back_populates="movies")
 
@@ -142,7 +197,7 @@ class MovieModel(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("name", "date", name="unique_movie_constraint"),
+        UniqueConstraint("name", "year", "time", name="unique_movie_constraint"),
     )
 
     @classmethod
@@ -150,4 +205,4 @@ class MovieModel(Base):
         return [cls.id.desc()]
 
     def __repr__(self):
-        return f"<Movie(name='{self.name}', release_date='{self.date}', score={self.score})>"
+        return f"<Movie(name='{self.name}', release_date='{self.year}', score={self.score})>"

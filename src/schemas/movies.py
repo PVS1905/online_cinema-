@@ -13,7 +13,7 @@ from schemas.examples.movies import (
     movie_list_response_schema_example,
     movie_create_schema_example,
     movie_detail_schema_example,
-    movie_update_schema_example
+    movie_update_schema_example, director_schema_example
 )
 
 
@@ -74,20 +74,39 @@ class ActorSchema(BaseModel):
     }
 
 
+class DirectorSchema(BaseModel):
+    id: int
+    name: str
+
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [
+                director_schema_example
+            ]
+        }
+    }
+
+
 class MovieBaseSchema(BaseModel):
+    uuid: int = Field(..., ge=0)
     name: str = Field(..., max_length=255)
-    date: date
+    year: date
     score: float = Field(..., ge=0, le=100)
     overview: str
     status: MovieStatusEnum
     budget: float = Field(..., ge=0)
-    revenue: float = Field(..., ge=0)
+    time: int = Field(..., ge=0)
+    imdb: float = Field(..., ge=0)
+    votes: int = Field(..., ge=0)
+    meta_score: float = Field(..., ge=0)
+    gross: float = Field(..., ge=0)
 
     model_config = {
         "from_attributes": True
     }
 
-    @field_validator("date")
+    @field_validator("year")
     @classmethod
     def validate_date(cls, value):
         current_year = datetime.now().year
@@ -102,6 +121,7 @@ class MovieDetailSchema(MovieBaseSchema):
     genres: List[GenreSchema]
     actors: List[ActorSchema]
     languages: List[LanguageSchema]
+
 
     model_config = {
         "from_attributes": True,
@@ -119,6 +139,7 @@ class MovieListItemSchema(BaseModel):
     date: date
     score: float
     overview: str
+
 
     model_config = {
         "from_attributes": True,
@@ -154,7 +175,7 @@ class MovieCreateSchema(BaseModel):
     overview: str
     status: MovieStatusEnum
     budget: float = Field(..., ge=0)
-    revenue: float = Field(..., ge=0)
+    gross: float = Field(..., ge=0)
     country: str
     genres: List[str]
     actors: List[str]
@@ -187,7 +208,7 @@ class MovieUpdateSchema(BaseModel):
     overview: Optional[str] = None
     status: Optional[MovieStatusEnum] = None
     budget: Optional[float] = Field(None, ge=0)
-    revenue: Optional[float] = Field(None, ge=0)
+    gross: Optional[float] = Field(None, ge=0)
 
     model_config = {
         "from_attributes": True,

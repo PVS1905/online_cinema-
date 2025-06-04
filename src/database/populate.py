@@ -231,7 +231,7 @@ class CSVDatabaseSeeder:
                 "overview": row['overview'],
                 "status": row['status'],
                 "budget": float(row['budget_x']),
-                "revenue": float(row['revenue']),
+                "gross": float(row['gross']),
                 "country_id": country.id
             }
             movies_data.append(movie)

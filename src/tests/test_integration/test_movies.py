@@ -322,12 +322,12 @@ async def test_get_movie_by_id_fields_match_database(client, db_session, seed_da
 
     assert response_data["id"] == random_movie.id, "ID does not match."
     assert response_data["name"] == random_movie.name, "Name does not match."
-    assert response_data["date"] == random_movie.date.isoformat(), "Date does not match."
+    assert response_data["year"] == random_movie.year.isoformat(), "Date does not match."
     assert response_data["score"] == random_movie.score, "Score does not match."
     assert response_data["overview"] == random_movie.overview, "Overview does not match."
     assert response_data["status"] == random_movie.status.value, "Status does not match."
     assert response_data["budget"] == float(random_movie.budget), "Budget does not match."
-    assert response_data["revenue"] == random_movie.revenue, "Revenue does not match."
+    assert response_data["gross"] == random_movie.gross, "Revenue does not match."
 
     assert response_data["country"]["id"] == random_movie.country.id, "Country ID does not match."
     assert response_data["country"]["code"] == random_movie.country.code, "Country code does not match."
@@ -368,7 +368,7 @@ async def test_create_movie_and_related_models(client, db_session):
         "overview": "An amazing movie.",
         "status": "Released",
         "budget": 1000000.00,
-        "revenue": 5000000.00,
+        "gross": 5000000.00,
         "country": "US",
         "genres": ["Action", "Adventure"],
         "actors": ["John Doe", "Jane Doe"],
@@ -426,7 +426,7 @@ async def test_create_movie_duplicate_error(client, db_session, seed_database):
         "overview": "Duplicate movie test.",
         "status": "Released",
         "budget": 2000000.00,
-        "revenue": 8000000.00,
+        "gross": 8000000.00,
         "country": "US",
         "genres": ["Drama"],
         "actors": ["New Actor"],

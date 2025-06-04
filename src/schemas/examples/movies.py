@@ -1,7 +1,7 @@
 movie_item_schema_example = {
     "id": 9933,
     "name": "The Swan Princess: A Royal Wedding",
-    "date": "2020-07-20",
+    "year": "2020-07-20",
     "score": 70,
     "overview": "Princess Odette and Prince Derek are going to a wedding at Princess Mei Li and her beloved Chen. "
                 "But evil forces are at stake and the wedding plans are tarnished and "
@@ -20,12 +20,12 @@ movie_list_response_schema_example = {
 
 movie_create_schema_example = {
     "name": "New Movie",
-    "date": "2025-01-01",
+    "year": "2025-01-01",
     "score": 85.5,
     "overview": "An amazing movie.",
     "status": "Released",
     "budget": 1000000.00,
-    "revenue": 5000000.00,
+    "gross": 5000000.00,
     "country": "US",
     "genres": ["Action", "Adventure"],
     "actors": ["John Doe", "Jane Doe"],
@@ -54,11 +54,17 @@ actor_schema_example = {
     "name": "JimmyFallon"
 }
 
+director_schema_example = {
+    "id": 1,
+    "name": "JimmyDirectors"
+}
+
+
 movie_detail_schema_example = {
     **movie_item_schema_example,
     "status": "Released",
     "budget": 1000000.00,
-    "revenue": 5000000.00,
+    "gross": 5000000.00,
     "actors": [actor_schema_example],
     "country": country_schema_example,
     "genres": [genre_schema_example],
@@ -67,10 +73,10 @@ movie_detail_schema_example = {
 
 movie_update_schema_example = {
     "name": "Update Movie",
-    "date": "2025-01-01",
+    "year": "2025-01-01",
     "score": 85.5,
     "overview": "An amazing movie.",
     "status": "Released",
     "budget": 1000000.00,
-    "revenue": 5000000.00,
+    "gross": 5000000.00,
 }

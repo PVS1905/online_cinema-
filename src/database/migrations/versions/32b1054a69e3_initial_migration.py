@@ -59,7 +59,7 @@ def upgrade() -> None:
     sa.Column('overview', sa.Text(), nullable=False),
     sa.Column('status', sa.Enum('RELEASED', 'POST_PRODUCTION', 'IN_PRODUCTION', name='moviestatusenum'), nullable=False),
     sa.Column('budget', sa.DECIMAL(precision=15, scale=2), nullable=False),
-    sa.Column('revenue', sa.Float(), nullable=False),
+    sa.Column('gross', sa.Float(), nullable=False),
     sa.Column('country_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['country_id'], ['countries.id'], ),
     sa.PrimaryKeyConstraint('id'),

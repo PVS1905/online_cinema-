@@ -153,7 +153,7 @@ async def create_movie(
     """
     existing_stmt = select(MovieModel).where(
         (MovieModel.name == movie_data.name),
-        (MovieModel.date == movie_data.date)
+        (MovieModel.year == movie_data.year)
     )
     existing_result = await db.execute(existing_stmt)
     existing_movie = existing_result.scalars().first()
@@ -214,12 +214,12 @@ async def create_movie(
 
         movie = MovieModel(
             name=movie_data.name,
-            date=movie_data.date,
+            year=movie_data.year,
             score=movie_data.score,
             overview=movie_data.overview,
             status=movie_data.status,
             budget=movie_data.budget,
-            revenue=movie_data.revenue,
+            gross=movie_data.gross,
             country=country,
             genres=genres,
             actors=actors,
@@ -243,7 +243,7 @@ async def create_movie(
     description=(
             "<h3>Fetch detailed information about a specific movie by its unique ID. "
             "This endpoint retrieves all available details for the movie, such as "
-            "its name, genre, crew, budget, and revenue. If the movie with the given "
+            "its name, genre, crew, budget, and gross. If the movie with the given "
             "ID is not found, a 404 error will be returned.</h3>"
     ),
     responses={
