@@ -165,7 +165,7 @@ class MovieModel(Base):
         SQLAlchemyEnum(MovieStatusEnum), nullable=False
     )
     budget: Mapped[float] = mapped_column(DECIMAL(15, 2), nullable=False)
-    gross: Mapped[float] = mapped_column(Float, nullable=False)
+    gross: Mapped[float] = mapped_column(Float, nullable=True)
 
     certification_id: Mapped[int] = mapped_column(ForeignKey("certifications.id"), nullable=False)
     certification: Mapped["Certification"] = relationship("Certification", back_populates="movies")

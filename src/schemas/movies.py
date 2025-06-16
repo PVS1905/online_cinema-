@@ -169,12 +169,16 @@ class MovieListResponseSchema(BaseModel):
 
 
 class MovieCreateSchema(BaseModel):
-    name: str
-    date: date
+    name: str = Field(..., max_length=255)
+    year: date
     score: float = Field(..., ge=0, le=100)
     overview: str
     status: MovieStatusEnum
     budget: float = Field(..., ge=0)
+    time: int = Field(..., ge=0)
+    imdb: float = Field(..., ge=0)
+    votes: int = Field(..., ge=0)
+    meta_score: float = Field(..., ge=0)
     gross: float = Field(..., ge=0)
     country: str
     genres: List[str]
