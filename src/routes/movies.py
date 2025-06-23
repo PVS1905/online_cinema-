@@ -1,10 +1,12 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
-
-from database import MovieModel
+from sqlalchemy import extract
+from database import MovieModel, User
 from database import get_db
 from database import (
     CountryModel,
@@ -12,15 +14,17 @@ from database import (
     ActorModel,
     LanguageModel
 )
-from database.models.movies import Certification, DirectorModel
+from database.models.movies import Certification, DirectorModel, MovieLike, Comment, MoviesGenresModel
 from schemas import (
     MovieListResponseSchema,
     MovieListItemSchema,
     MovieDetailSchema
 )
-from schemas.movies import MovieCreateSchema, MovieUpdateSchema
+from schemas.movies import MovieCreateSchema, MovieUpdateSchema, MovieLikeSchema, CommentResponse, CommentCreate
 
 from sqlalchemy.orm import selectinload
+
+from security.jwt_manager_instance import get_current_user
 
 router = APIRouter()
 
@@ -515,3 +519,94 @@ async def update_movie(
         raise HTTPException(status_code=400, detail="Invalid input data.")
 
     return {"detail": "Movie updated successfully."}
+
+
+
+
+
+
+
+
+@router.post("/movies/like", status_code=201)
+async def like_movie(
+    like_data: MovieLikeSchema,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Чи вже існує запис?
+    existing = await db.execute(
+        select(MovieLike).where(
+            MovieLike.user_id == current_user.id,
+            MovieLike.movie_id == like_data.movie_id
+        )
+    )
+    record = existing.scalar_one_or_none()
+
+    if record:
+        record.is_like = like_data.is_like  # оновити like/dislike
+    else:
+        record = MovieLike(
+            user_id=current_user.id,
+            movie_id=like_data.movie_id,
+            is_like=like_data.is_like,
+        )
+        db.add(record)
+
+    await db.commit()
+    return {"message": "Вподобання збережено"}
+
+
+@router.get("/movies/{movie_id}/likes")
+async def get_likes_stats(movie_id: int, db: AsyncSession = Depends(get_db)):
+    likes = await db.execute(
+        select(
+            func.count().filter(MovieLike.is_like == True),
+            func.count().filter(MovieLike.is_like == False)
+        ).where(MovieLike.movie_id == movie_id)
+    )
+    like_count, dislike_count = likes.one()
+    return {"likes": like_count, "dislikes": dislike_count}
+
+
+@router.post("/comments/", response_model=CommentResponse)
+async def create_comment(
+    comment_data: CommentCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    comment = Comment(
+        content=comment_data.content,
+        user_id=current_user.id,
+        movie_id=comment_data.movie_id
+    )
+    db.add(comment)
+    await db.commit()
+    await db.refresh(comment)
+    return comment
+
+
+@router.get("/movies_filter/")
+async def filter_movies(
+    year: Optional[int] = Query(None),
+    imdb_min: Optional[float] = Query(None),
+    imdb_max: Optional[float] = Query(None),
+    genre_id: Optional[int] = Query(None),
+    name: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(MovieModel).options(selectinload(MovieModel.genres))
+
+    if year:
+        query = query.where(extract('year', MovieModel.year) == year)
+    if imdb_min:
+        query = query.where(MovieModel.imdb >= imdb_min)
+    if imdb_max:
+        query = query.where(MovieModel.imdb <= imdb_max)
+    if name:
+        query = query.where(MovieModel.name.ilike(f"%{name}%"))
+    if genre_id:
+        query = query.join(MoviesGenresModel).where(MoviesGenresModel.c.genre_id == genre_id)
+
+    result = await db.execute(query)
+    movies = result.scalars().unique().all()
+    return movies

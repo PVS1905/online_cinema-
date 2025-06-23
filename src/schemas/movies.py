@@ -229,3 +229,35 @@ class MovieUpdateSchema(BaseModel):
             ]
         }
     }
+
+
+
+class MovieLikeSchema(BaseModel):
+    movie_id: int
+    is_like: bool
+
+    class Config:
+        from_attributes = True
+
+
+class CommentCreate(BaseModel):
+    content: str
+    movie_id: int
+
+class CommentResponse(BaseModel):
+    id: int
+    content: str
+    created_at: datetime
+    user_id: int
+    movie_id: int
+
+    class Config:
+        from_attributes = True
+
+
+class MovieFilter(BaseModel):
+    year: Optional[int] = None
+    imdb_min: Optional[float] = None
+    imdb_max: Optional[float] = None
+    genre_id: Optional[int] = None
+    name: Optional[str] = None

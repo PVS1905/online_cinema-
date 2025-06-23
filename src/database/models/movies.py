@@ -1,14 +1,15 @@
-import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import String, Float, Text, DECIMAL, UniqueConstraint, Date, ForeignKey, Table, Column, Integer
+from sqlalchemy import String, Float, Text, DECIMAL, UniqueConstraint, Date, ForeignKey, Table, Column, Integer, \
+    Boolean, DateTime
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy.dialects.postgresql import UUID
 from database import Base
 import uuid
-
+from typing import List
+from datetime import datetime
 
 class MovieStatusEnum(str, Enum):
     RELEASED = "Released"
@@ -197,6 +198,10 @@ class MovieModel(Base):
         back_populates="movies"
     )
 
+    likes: Mapped[List["MovieLike"]] = relationship("MovieLike", back_populates="movie")
+
+    comments = relationship("Comment", back_populates="movie", cascade="all, delete-orphan")
+
     __table_args__ = (
         UniqueConstraint("name", "year", "time", name="unique_movie_constraint"),
     )
@@ -207,3 +212,34 @@ class MovieModel(Base):
 
     def __repr__(self):
         return f"<Movie(name='{self.name}', release_date='{self.year}', score={self.score})>"
+
+
+class MovieLike(Base):
+    __tablename__ = "movie_likes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    movie_id: Mapped[int] = mapped_column(ForeignKey("movies.id", ondelete="CASCADE"), nullable=False)
+    is_like: Mapped[bool] = mapped_column(Boolean, nullable=False)  # True = like, False = dislike
+
+    user: Mapped["User"] = relationship("User", back_populates="likes")
+    movie: Mapped["MovieModel"] = relationship("MovieModel", back_populates="likes")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "movie_id", name="unique_user_movie_like"),
+    )
+
+
+class Comment(Base):
+    __tablename__ = "comments"
+
+    id = Column(Integer, primary_key=True)
+    content = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    movie_id = Column(Integer, ForeignKey("movies.id", ondelete="CASCADE"), nullable=False)
+
+    user = relationship("User", back_populates="comments")
+    movie = relationship("MovieModel", back_populates="comments")
+

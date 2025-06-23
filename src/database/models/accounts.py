@@ -27,6 +27,12 @@ from security.passwords import hash_password, verify_password
 from security.utils import generate_secure_token
 
 
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.sql import table, column, select
+from sqlalchemy import String
+
+
 class UserGroupEnum(str, enum.Enum):
     USER = "user"
     MODERATOR = "moderator"
@@ -90,6 +96,15 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+
+
+    likes: Mapped[List["MovieLike"]] = relationship(
+        "MovieLike",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+    comments = relationship("Comment", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, is_active={self.is_active})>"
