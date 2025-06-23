@@ -19,17 +19,23 @@ movie_list_response_schema_example = {
 }
 
 movie_create_schema_example = {
-    "name": "New Movie",
-    "year": "2025-01-01",
-    "score": 85.5,
+    "name": "New Mvi",
     "overview": "An amazing movie.",
+    "score": 85.5,
     "status": "Released",
-    "budget": 1000000.00,
-    "gross": 5000000.00,
-    "country": "US",
+    "year": "2025-01-21",
+    "time": 120,
+    "imdb": 8.7,
+    "votes": 1500,
+    "meta_score": 71,
+    "certification": "PG-13",
+    "directors": ["Jane Director"],
+    "actors": ["John D", "Jane Doe"],
+    "budget": 1000000,
+    "country": "UA",
     "genres": ["Action", "Adventure"],
-    "actors": ["John Doe", "Jane Doe"],
-    "languages": ["English", "French"]
+    "gross": 5000000,
+    "languages": ["English", "French"],
 }
 
 
@@ -46,7 +52,7 @@ country_schema_example = {
 
 genre_schema_example = {
     "id": 1,
-    "genre": "Comedy"
+    "name": "Comedy"
 }
 
 actor_schema_example = {
@@ -79,4 +85,5 @@ movie_update_schema_example = {
     "status": "Released",
     "budget": 1000000.00,
     "gross": 5000000.00,
+    "genre_ids": ["id"],
 }

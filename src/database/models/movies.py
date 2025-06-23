@@ -58,6 +58,7 @@ MoviesLanguagesModel = Table(
 
 class DirectorModel(Base):
     __tablename__ = "directors"
+
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
 

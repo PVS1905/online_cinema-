@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from typing import Optional, List
-
+from pydantic import UUID4
 from pydantic import BaseModel, Field, field_validator
 
 from database.models.movies import MovieStatusEnum
@@ -88,8 +88,16 @@ class DirectorSchema(BaseModel):
     }
 
 
+class CertificationSchema(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
 class MovieBaseSchema(BaseModel):
-    uuid: int = Field(..., ge=0)
+    # uuid: int = Field(..., ge=0)
     name: str = Field(..., max_length=255)
     year: date
     score: float = Field(..., ge=0, le=100)
@@ -101,7 +109,7 @@ class MovieBaseSchema(BaseModel):
     votes: int = Field(..., ge=0)
     meta_score: float = Field(..., ge=0)
     gross: float = Field(..., ge=0)
-
+    certification: str
     model_config = {
         "from_attributes": True
     }
@@ -117,11 +125,13 @@ class MovieBaseSchema(BaseModel):
 
 class MovieDetailSchema(MovieBaseSchema):
     id: int
+    uuid: UUID4
+    certification: CertificationSchema
     country: CountrySchema
     genres: List[GenreSchema]
     actors: List[ActorSchema]
     languages: List[LanguageSchema]
-
+    directors: List[DirectorSchema]
 
     model_config = {
         "from_attributes": True,
@@ -136,9 +146,11 @@ class MovieDetailSchema(MovieBaseSchema):
 class MovieListItemSchema(BaseModel):
     id: int
     name: str
-    date: date
-    score: float
-    overview: str
+    year: date
+    time: int
+    imdb: float
+    languages: List[LanguageSchema]
+    directors: List[DirectorSchema]
 
 
     model_config = {
@@ -168,18 +180,8 @@ class MovieListResponseSchema(BaseModel):
     }
 
 
-class MovieCreateSchema(BaseModel):
-    name: str = Field(..., max_length=255)
-    year: date
-    score: float = Field(..., ge=0, le=100)
-    overview: str
-    status: MovieStatusEnum
-    budget: float = Field(..., ge=0)
-    time: int = Field(..., ge=0)
-    imdb: float = Field(..., ge=0)
-    votes: int = Field(..., ge=0)
-    meta_score: float = Field(..., ge=0)
-    gross: float = Field(..., ge=0)
+class MovieCreateSchema(MovieBaseSchema):
+    directors: List[str]
     country: str
     genres: List[str]
     actors: List[str]
@@ -207,12 +209,17 @@ class MovieCreateSchema(BaseModel):
 
 class MovieUpdateSchema(BaseModel):
     name: Optional[str] = None
-    date: Optional[date] = None
+    year: Optional[date] = None
     score: Optional[float] = Field(None, ge=0, le=100)
     overview: Optional[str] = None
     status: Optional[MovieStatusEnum] = None
     budget: Optional[float] = Field(None, ge=0)
     gross: Optional[float] = Field(None, ge=0)
+
+    # genre_ids: Optional[List[int]] = None
+    # languages: Optional[List[LanguageSchema]] = None
+    # directors: Optional[List[DirectorSchema]] = None
+    # certification: Optional[CertificationSchema] = None
 
     model_config = {
         "from_attributes": True,

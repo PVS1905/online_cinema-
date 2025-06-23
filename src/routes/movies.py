@@ -12,12 +12,15 @@ from database import (
     ActorModel,
     LanguageModel
 )
+from database.models.movies import Certification, DirectorModel
 from schemas import (
     MovieListResponseSchema,
     MovieListItemSchema,
     MovieDetailSchema
 )
 from schemas.movies import MovieCreateSchema, MovieUpdateSchema
+
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -77,7 +80,15 @@ async def get_movie_list(
         raise HTTPException(status_code=404, detail="No movies found.")
 
     order_by = MovieModel.default_order_by()
-    stmt = select(MovieModel)
+    stmt = select(MovieModel).options(
+        selectinload(MovieModel.languages),
+        selectinload(MovieModel.directors),
+        selectinload(MovieModel.genres),
+        selectinload(MovieModel.actors),
+        selectinload(MovieModel.country),
+        selectinload(MovieModel.certification),
+    )
+
     if order_by:
         stmt = stmt.order_by(*order_by)
 
@@ -163,11 +174,22 @@ async def create_movie(
             status_code=409,
             detail=(
                 f"A movie with the name '{movie_data.name}' and release date "
-                f"'{movie_data.date}' already exists."
+                f"'{movie_data.year}' already exists."
             )
         )
 
     try:
+        cert_stmt = select(Certification).where(
+            Certification.name == movie_data.certification
+        )
+        cert_result = await db.execute(cert_stmt)
+        certification = cert_result.scalars().first()
+
+        if not certification:
+            certification = Certification(name=movie_data.certification)
+            db.add(certification)
+            await db.flush()
+
         country_stmt = select(CountryModel).where(CountryModel.code == movie_data.country)
         country_result = await db.execute(country_stmt)
         country = country_result.scalars().first()
@@ -212,24 +234,60 @@ async def create_movie(
                 await db.flush()
             languages.append(language)
 
+        directors = []
+        for director_name in movie_data.directors:
+            dir_stmt = select(DirectorModel).where(
+                DirectorModel.name == director_name
+            )
+            dir_result = await db.execute(dir_stmt)
+            director = dir_result.scalars().first()
+
+            if not director:
+                director = DirectorModel(name=director_name)
+                db.add(director)
+                await db.flush()
+            directors.append(director)
+
         movie = MovieModel(
             name=movie_data.name,
             year=movie_data.year,
+            time=movie_data.time,
+            imdb=movie_data.imdb,
+            votes=movie_data.votes,
+            meta_score=movie_data.meta_score,
             score=movie_data.score,
             overview=movie_data.overview,
             status=movie_data.status,
             budget=movie_data.budget,
             gross=movie_data.gross,
+            certification=certification,
+            directors=directors,
             country=country,
             genres=genres,
             actors=actors,
             languages=languages,
+
+
+
         )
         db.add(movie)
         await db.commit()
-        await db.refresh(movie, ["genres", "actors", "languages"])
 
-        return MovieDetailSchema.model_validate(movie)
+        result = await db.execute(
+            select(MovieModel)
+            .where(MovieModel.id == movie.id)
+            .options(
+                selectinload(MovieModel.certification),
+                selectinload(MovieModel.country),
+                selectinload(MovieModel.directors),
+                selectinload(MovieModel.genres),
+                selectinload(MovieModel.actors),
+                selectinload(MovieModel.languages)
+            )
+        )
+        movie_with_relations = result.scalars().first()
+
+        return MovieDetailSchema.model_validate(movie_with_relations)
 
     except IntegrityError:
         await db.rollback()
@@ -277,13 +335,16 @@ async def get_movie_by_id(
 
     :raises HTTPException: Raises a 404 error if the movie with the given ID is not found.
     """
+
     stmt = (
         select(MovieModel)
         .options(
-            joinedload(MovieModel.country),
-            joinedload(MovieModel.genres),
-            joinedload(MovieModel.actors),
-            joinedload(MovieModel.languages),
+            selectinload(MovieModel.country),
+            selectinload(MovieModel.genres),
+            selectinload(MovieModel.directors),
+            selectinload(MovieModel.actors),
+            selectinload(MovieModel.languages),
+            selectinload(MovieModel.certification),
         )
         .where(MovieModel.id == movie_id)
     )
@@ -409,7 +470,18 @@ async def update_movie(
     :return: A response indicating the successful update of the movie.
     :rtype: None
     """
-    stmt = select(MovieModel).where(MovieModel.id == movie_id)
+    stmt = (
+        select(MovieModel)
+        .options(
+            selectinload(MovieModel.country),
+            selectinload(MovieModel.genres),
+            selectinload(MovieModel.directors),
+            selectinload(MovieModel.actors),
+            selectinload(MovieModel.languages),
+            selectinload(MovieModel.certification),
+        )
+        .where(MovieModel.id == movie_id)
+    )
     result = await db.execute(stmt)
     movie = result.scalars().first()
 
@@ -419,8 +491,21 @@ async def update_movie(
             detail="Movie with the given ID was not found."
         )
 
+    # if movie_data.genre_ids is not None:
+    #     movie.genres.clear()
+    #     result = await db.execute(select(GenreModel).where(GenreModel.id.in_(movie_data.genre_ids)))
+    #     movie.genres.extend(result.scalars().all())
+
+
+    # Прості поля
+    simple_fields = {
+        "name", "year", "score", "overview", "status",
+        "budget", "time", "gross", "imdb", "votes", "meta_score"
+    }
+
     for field, value in movie_data.model_dump(exclude_unset=True).items():
-        setattr(movie, field, value)
+        if field in simple_fields:
+            setattr(movie, field, value)
 
     try:
         await db.commit()
