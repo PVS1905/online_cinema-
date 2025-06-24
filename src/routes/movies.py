@@ -14,14 +14,14 @@ from database import (
     ActorModel,
     LanguageModel
 )
-from database.models.movies import Certification, DirectorModel, MovieLike, Comment, MoviesGenresModel
+from database.models.movies import Certification, DirectorModel, MovieLike, Comment, MoviesGenresModel, FavoriteMovie
 from schemas import (
     MovieListResponseSchema,
     MovieListItemSchema,
     MovieDetailSchema
 )
 from schemas.movies import MovieCreateSchema, MovieUpdateSchema, MovieLikeSchema, CommentResponse, CommentCreate, \
-    MovieFilter, MovieSortParams, MovieSearch
+    MovieFilter, MovieSortParams, MovieSearch, FavoriteMovieOut, FavoriteMovieCreate
 
 from sqlalchemy.orm import selectinload
 
@@ -647,3 +647,57 @@ async def get_movies_search(
     result = await db.execute(query)
     movies = result.scalars().unique().all()
     return movies
+
+
+@router.post("/favorites/", response_model=FavoriteMovieOut)
+async def add_to_favorites(
+    favorite_data: FavoriteMovieCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    existing = await db.execute(
+        select(FavoriteMovie).where(
+            FavoriteMovie.user_id == user.id,
+            FavoriteMovie.movie_id == favorite_data.movie_id
+        )
+    )
+    if existing.scalar():
+        raise HTTPException(status_code=400, detail="Movie already in favorites")
+
+    new_favorite = FavoriteMovie(user_id=user.id, movie_id=favorite_data.movie_id)
+    db.add(new_favorite)
+    await db.commit()
+    await db.refresh(new_favorite)
+
+    return new_favorite.movie
+
+
+@router.get("/favorites/", response_model=list[FavoriteMovieOut])
+async def get_favorites(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    year: Optional[int] = Query(None),
+    name: Optional[str] = Query(None),
+    imdb_min: Optional[float] = Query(None),
+    sort_by: Optional[str] = Query("year"),
+    order: Optional[str] = Query("asc"),
+):
+    stmt = (
+        select(MovieModel)
+        .join(FavoriteMovie, FavoriteMovie.movie_id == MovieModel.id)
+        .where(FavoriteMovie.user_id == user.id)
+    )
+
+    if year:
+        stmt = stmt.where(MovieModel.year == year)
+    if name:
+        stmt = stmt.where(MovieModel.name.ilike(f"%{name}%"))
+    if imdb_min:
+        stmt = stmt.where(MovieModel.imdb >= imdb_min)
+
+    if sort_by in ["year", "imdb", "name"]:
+        sort_attr = getattr(MovieModel, sort_by)
+        stmt = stmt.order_by(sort_attr.desc() if order == "desc" else sort_attr.asc())
+
+    result = await db.execute(stmt)
+    return result.scalars().all()

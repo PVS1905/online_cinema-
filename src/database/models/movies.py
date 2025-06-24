@@ -208,6 +208,8 @@ class MovieModel(Base):
 
     comments = relationship("Comment", back_populates="movie", cascade="all, delete-orphan")
 
+    favorite_movies = relationship("Favorite", back_populates="movie", cascade="all, delete-orphan")
+
     __table_args__ = (
         UniqueConstraint("name", "year", "time", name="unique_movie_constraint"),
     )
@@ -248,3 +250,18 @@ class Comment(Base):
 
     user = relationship("User", back_populates="comments")
     movie = relationship("MovieModel", back_populates="comments")
+
+
+class FavoriteMovie(Base):
+    __tablename__ = "favorite_movies"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    movie_id: Mapped[int] = mapped_column(ForeignKey("movies.id", ondelete="CASCADE"))
+
+    user: Mapped["User"] = relationship("User", back_populates="favorite_movies")
+    movie: Mapped["MovieModel"] = relationship("MovieModel")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "movie_id", name="unique_favorite_movie"),
+    )
