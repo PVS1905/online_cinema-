@@ -14,14 +14,32 @@ from database import (
     ActorModel,
     LanguageModel
 )
-from database.models.movies import Certification, DirectorModel, MovieLike, Comment, MoviesGenresModel, FavoriteMovie
+from database.models.movies import (
+    Certification,
+    DirectorModel,
+    MovieLike,
+    Comment,
+    MoviesGenresModel,
+    FavoriteMovie,
+)
 from schemas import (
     MovieListResponseSchema,
     MovieListItemSchema,
     MovieDetailSchema
 )
-from schemas.movies import MovieCreateSchema, MovieUpdateSchema, MovieLikeSchema, CommentResponse, CommentCreate, \
-    MovieFilter, MovieSortParams, MovieSearch, FavoriteMovieOut, FavoriteMovieCreate
+from schemas.movies import (
+    MovieCreateSchema,
+    MovieUpdateSchema,
+    MovieLikeSchema,
+    CommentResponse,
+    CommentCreate,
+    MovieFilter,
+    MovieSortParams,
+    MovieSearch,
+    FavoriteMovieOut,
+    FavoriteMovieCreate,
+    GenreWithCountOut
+)
 
 from sqlalchemy.orm import selectinload
 
@@ -727,3 +745,40 @@ async def remove_favorite(
     await db.delete(favorite)
     await db.commit()
     return {"detail": "Movie was removed from favorites."}
+
+
+@router.get("/genres/", response_model=list[GenreWithCountOut])
+async def list_genres_with_counts(db: AsyncSession = Depends(get_db)):
+    stmt = (
+        select(
+            GenreModel.id,
+            GenreModel.name,
+            func.count(MoviesGenresModel.c.movie_id).label("movie_count")
+        )
+        .join(MoviesGenresModel, GenreModel.id == MoviesGenresModel.c.genre_id)
+        .group_by(GenreModel.id)
+        .order_by(func.count(MoviesGenresModel.c.movie_id).desc())
+    )
+    result = await db.execute(stmt)
+    return [
+        GenreWithCountOut(id=id_, name=name, movie_count=movie_count)
+        for id_, name, movie_count in result.all()
+    ]
+
+
+@router.get("/genres/{genre_id}/movies/", response_model=list[MovieListItemSchema])
+async def get_movies_by_genre(
+    genre_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = (
+        select(MovieModel)
+        .options(
+            selectinload(MovieModel.languages),
+            selectinload(MovieModel.directors),
+        )
+        .join(MoviesGenresModel, MovieModel.id == MoviesGenresModel.c.movie_id)
+        .where(MoviesGenresModel.c.genre_id == genre_id)
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()

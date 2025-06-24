@@ -307,3 +307,9 @@ class FavoriteMovieOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class GenreWithCountOut(BaseModel):
+    id: int
+    name: str
+    movie_count: int
