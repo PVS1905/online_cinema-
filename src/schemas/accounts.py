@@ -78,4 +78,3 @@ class UserUpdatePasswordRequestSchema(BaseModel):
 
 class UserUpdatePasswordResponseSchema(BaseModel):
     message: str
-

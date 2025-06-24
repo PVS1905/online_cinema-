@@ -1,7 +1,8 @@
 from datetime import date, datetime
-from typing import Optional, List
+from typing import Optional, List, Literal
 from pydantic import UUID4
 from pydantic import BaseModel, Field, field_validator
+from fastapi import Query
 
 from database.models.movies import MovieStatusEnum
 from schemas.examples.movies import (
@@ -152,7 +153,6 @@ class MovieListItemSchema(BaseModel):
     languages: List[LanguageSchema]
     directors: List[DirectorSchema]
 
-
     model_config = {
         "from_attributes": True,
         "json_schema_extra": {
@@ -231,7 +231,6 @@ class MovieUpdateSchema(BaseModel):
     }
 
 
-
 class MovieLikeSchema(BaseModel):
     movie_id: int
     is_like: bool
@@ -244,6 +243,7 @@ class CommentCreate(BaseModel):
     content: str
     movie_id: int
 
+
 class CommentResponse(BaseModel):
     id: int
     content: str
@@ -255,9 +255,48 @@ class CommentResponse(BaseModel):
         from_attributes = True
 
 
-class MovieFilter(BaseModel):
-    year: Optional[int] = None
-    imdb_min: Optional[float] = None
-    imdb_max: Optional[float] = None
-    genre_id: Optional[int] = None
-    name: Optional[str] = None
+# class MovieFilter(BaseModel):
+#     year: Optional[int] = None
+#     imdb_min: Optional[float] = None
+#     imdb_max: Optional[float] = None
+#     genre_id: Optional[int] = None
+#     name: Optional[str] = None
+
+class MovieFilter:
+    def __init__(
+        self,
+        year: Optional[int] = Query(None),
+        imdb_min: Optional[float] = Query(None),
+        imdb_max: Optional[float] = Query(None),
+        genre_id: Optional[int] = Query(None),
+        name: Optional[str] = Query(None),
+    ):
+        self.year = year
+        self.imdb_min = imdb_min
+        self.imdb_max = imdb_max
+        self.genre_id = genre_id
+        self.name = name
+
+
+class MovieSortParams:
+    def __init__(
+        self,
+        sort_by: Optional[Literal["year", "imdb", "votes", "price"]] = Query("year"),
+        order: Optional[Literal["asc", "desc"]] = Query("asc"),
+    ):
+        self.sort_by = sort_by
+        self.order = order
+
+
+class MovieSearch:
+    def __init__(
+        self,
+        genres: Optional[List[str]] = Query(None),
+        actors: Optional[List[str]] = Query(None),
+        directors: Optional[List[str]] = Query(None),
+        overview: Optional[str] = Query(None),
+    ):
+        self.genres = genres
+        self.actors = actors
+        self.directors = directors
+        self.overview = overview

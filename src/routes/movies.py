@@ -1,5 +1,5 @@
 from typing import Optional
-
+from sqlalchemy import desc, asc
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
@@ -20,7 +20,8 @@ from schemas import (
     MovieListItemSchema,
     MovieDetailSchema
 )
-from schemas.movies import MovieCreateSchema, MovieUpdateSchema, MovieLikeSchema, CommentResponse, CommentCreate
+from schemas.movies import MovieCreateSchema, MovieUpdateSchema, MovieLikeSchema, CommentResponse, CommentCreate, \
+    MovieFilter, MovieSortParams, MovieSearch
 
 from sqlalchemy.orm import selectinload
 
@@ -495,13 +496,6 @@ async def update_movie(
             detail="Movie with the given ID was not found."
         )
 
-    # if movie_data.genre_ids is not None:
-    #     movie.genres.clear()
-    #     result = await db.execute(select(GenreModel).where(GenreModel.id.in_(movie_data.genre_ids)))
-    #     movie.genres.extend(result.scalars().all())
-
-
-    # Прості поля
     simple_fields = {
         "name", "year", "score", "overview", "status",
         "budget", "time", "gross", "imdb", "votes", "meta_score"
@@ -519,12 +513,6 @@ async def update_movie(
         raise HTTPException(status_code=400, detail="Invalid input data.")
 
     return {"detail": "Movie updated successfully."}
-
-
-
-
-
-
 
 
 @router.post("/movies/like", status_code=201)
@@ -553,15 +541,15 @@ async def like_movie(
         db.add(record)
 
     await db.commit()
-    return {"message": "Вподобання збережено"}
+    return {"message": "Like saved"}
 
 
 @router.get("/movies/{movie_id}/likes")
 async def get_likes_stats(movie_id: int, db: AsyncSession = Depends(get_db)):
     likes = await db.execute(
         select(
-            func.count().filter(MovieLike.is_like == True),
-            func.count().filter(MovieLike.is_like == False)
+            func.count().filter(MovieLike.is_like.is_(True)),
+            func.count().filter(MovieLike.is_like.is_(False))
         ).where(MovieLike.movie_id == movie_id)
     )
     like_count, dislike_count = likes.one()
@@ -587,25 +575,74 @@ async def create_comment(
 
 @router.get("/movies_filter/")
 async def filter_movies(
-    year: Optional[int] = Query(None),
-    imdb_min: Optional[float] = Query(None),
-    imdb_max: Optional[float] = Query(None),
-    genre_id: Optional[int] = Query(None),
-    name: Optional[str] = Query(None),
+    filter_data: MovieFilter = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
     query = select(MovieModel).options(selectinload(MovieModel.genres))
 
-    if year:
-        query = query.where(extract('year', MovieModel.year) == year)
-    if imdb_min:
-        query = query.where(MovieModel.imdb >= imdb_min)
-    if imdb_max:
-        query = query.where(MovieModel.imdb <= imdb_max)
-    if name:
-        query = query.where(MovieModel.name.ilike(f"%{name}%"))
-    if genre_id:
-        query = query.join(MoviesGenresModel).where(MoviesGenresModel.c.genre_id == genre_id)
+    if filter_data.year:
+        query = query.where(extract('year', MovieModel.year) == filter_data.year)
+    if filter_data.imdb_min:
+        query = query.where(MovieModel.imdb >= filter_data.imdb_min)
+    if filter_data.imdb_max:
+        query = query.where(MovieModel.imdb <= filter_data.imdb_max)
+    if filter_data.name:
+        query = query.where(MovieModel.name.ilike(f"%{filter_data.name}%"))
+    if filter_data.genre_id:
+        query = query.join(MoviesGenresModel).where(MoviesGenresModel.c.genre_id == filter_data.genre_id)
+
+    result = await db.execute(query)
+    movies = result.scalars().unique().all()
+    return movies
+
+
+@router.get("/movies_sorted/")
+async def get_movies_sorted(
+    sort_data: MovieSortParams = Depends(),
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(MovieModel)
+
+    sort_column = None
+    if sort_data.sort_by == "price":
+        sort_column = MovieModel.budget
+    elif sort_data.sort_by == "year":
+        sort_column = MovieModel.year
+    elif sort_data.sort_by == "imdb":
+        sort_column = MovieModel.imdb
+    elif sort_data.sort_by == "votes":
+        sort_column = MovieModel.votes
+
+    if sort_column is not None:
+        query = query.order_by(asc(sort_column) if sort_data.order == "asc" else desc(sort_column))
+
+    result = await db.execute(query)
+    movies = result.scalars().unique().all()
+    return movies
+
+
+@router.get("/movies_search/")
+async def get_movies_search(
+    search_data: MovieSearch = Depends(),
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(MovieModel).options(
+        selectinload(MovieModel.genres),
+        selectinload(MovieModel.actors),
+        selectinload(MovieModel.directors),
+    )
+
+    if search_data.genres:
+        query = query.join(MovieModel.genres).where(GenreModel.name.in_(search_data.genres))
+
+    if search_data.actors:
+        query = query.join(MovieModel.actors).where(ActorModel.name.in_(search_data.actors))
+
+    if search_data.directors:
+        query = query.join(MovieModel.directors).where(DirectorModel.name.in_(search_data.directors))
+
+    if search_data.overview:
+        query = query.where(MovieModel.overview.ilike(f"%{search_data.overview}%"))
 
     result = await db.execute(query)
     movies = result.scalars().unique().all()

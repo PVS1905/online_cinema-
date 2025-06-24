@@ -10,11 +10,17 @@ from database import Base
 import uuid
 from typing import List
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from database.models.accounts import User
+
 
 class MovieStatusEnum(str, Enum):
     RELEASED = "Released"
     POST_PRODUCTION = "Post Production"
     IN_PRODUCTION = "In Production"
+
 
 DirectorMoviesModel = Table(
     "director_movies",
@@ -242,4 +248,3 @@ class Comment(Base):
 
     user = relationship("User", back_populates="comments")
     movie = relationship("MovieModel", back_populates="comments")
-
