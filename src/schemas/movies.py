@@ -300,9 +300,9 @@ class FavoriteMovieCreate(BaseModel):
 
 
 class FavoriteMovieOut(BaseModel):
-    movie_id: int
+    id: int
     name: str
-    year: int
+    year: date
     imdb: float
 
     class Config:

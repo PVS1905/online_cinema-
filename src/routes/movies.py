@@ -649,7 +649,7 @@ async def get_movies_search(
     return movies
 
 
-@router.post("/favorites/", response_model=FavoriteMovieOut)
+@router.post("/favorites/")
 async def add_to_favorites(
     favorite_data: FavoriteMovieCreate,
     db: AsyncSession = Depends(get_db),
@@ -667,9 +667,12 @@ async def add_to_favorites(
     new_favorite = FavoriteMovie(user_id=user.id, movie_id=favorite_data.movie_id)
     db.add(new_favorite)
     await db.commit()
-    await db.refresh(new_favorite)
+    movie_result = await db.execute(
+        select(MovieModel).options(selectinload(MovieModel.genres)).where(MovieModel.id == favorite_data.movie_id)
+    )
+    movie = movie_result.scalar_one()
 
-    return new_favorite.movie
+    return movie
 
 
 @router.get("/favorites/", response_model=list[FavoriteMovieOut])
@@ -678,9 +681,8 @@ async def get_favorites(
     user: User = Depends(get_current_user),
     year: Optional[int] = Query(None),
     name: Optional[str] = Query(None),
-    imdb_min: Optional[float] = Query(None),
-    sort_by: Optional[str] = Query("year"),
-    order: Optional[str] = Query("asc"),
+    imdb: Optional[float] = Query(None),
+    sort_data: MovieSortParams = Depends(),
 ):
     stmt = (
         select(MovieModel)
@@ -689,15 +691,39 @@ async def get_favorites(
     )
 
     if year:
-        stmt = stmt.where(MovieModel.year == year)
+        stmt = stmt.where(extract("year", MovieModel.year) == year)
     if name:
         stmt = stmt.where(MovieModel.name.ilike(f"%{name}%"))
-    if imdb_min:
-        stmt = stmt.where(MovieModel.imdb >= imdb_min)
+    if imdb:
+        stmt = stmt.where(MovieModel.imdb == imdb)
 
-    if sort_by in ["year", "imdb", "name"]:
-        sort_attr = getattr(MovieModel, sort_by)
-        stmt = stmt.order_by(sort_attr.desc() if order == "desc" else sort_attr.asc())
+    if sort_data.sort_by in ["year", "imdb", "name"]:
+        sort_attr = getattr(MovieModel, sort_data.sort_by)
+        stmt = stmt.order_by(
+            sort_attr.asc() if sort_data.order == "asc" else sort_attr.desc()
+        )
 
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+@router.delete("/favorite_remove/", status_code=204)
+async def remove_favorite(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    movie_id: Optional[int] = Query(None),
+):
+    stmt = select(FavoriteMovie).where(
+        FavoriteMovie.user_id == user.id,
+        FavoriteMovie.movie_id == movie_id,
+    )
+
+    result = await db.execute(stmt)
+    favorite = result.scalars().first()
+
+    if not favorite:
+        raise HTTPException(status_code=404, detail="Favorite not found")
+
+    await db.delete(favorite)
+    await db.commit()
+    return {"detail": "Movie was removed from favorites."}
