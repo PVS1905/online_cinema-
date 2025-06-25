@@ -210,6 +210,8 @@ class MovieModel(Base):
 
     favorite_movies = relationship("FavoriteMovie", back_populates="movie", cascade="all, delete-orphan")
 
+    ratings = relationship("MovieRating", back_populates="movie")
+
     __table_args__ = (
         UniqueConstraint("name", "year", "time", name="unique_movie_constraint"),
     )
@@ -264,4 +266,20 @@ class FavoriteMovie(Base):
 
     __table_args__ = (
         UniqueConstraint("user_id", "movie_id", name="unique_favorite_movie"),
+    )
+
+
+class MovieRating(Base):
+    __tablename__ = "movie_ratings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    movie_id: Mapped[int] = mapped_column(ForeignKey("movies.id", ondelete="CASCADE"), nullable=False)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    user = relationship("User", back_populates="movie_ratings")
+    movie = relationship("MovieModel", back_populates="ratings")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "movie_id", name="unique_user_movie_rating"),
     )

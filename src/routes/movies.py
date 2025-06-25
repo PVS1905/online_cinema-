@@ -20,7 +20,7 @@ from database.models.movies import (
     MovieLike,
     Comment,
     MoviesGenresModel,
-    FavoriteMovie,
+    FavoriteMovie, MovieRating,
 )
 from schemas import (
     MovieListResponseSchema,
@@ -38,13 +38,13 @@ from schemas.movies import (
     MovieSearch,
     FavoriteMovieOut,
     FavoriteMovieCreate,
-    GenreWithCountOut
+    GenreWithCountOut, MovieRatingCreate
 )
 
 from sqlalchemy.orm import selectinload
 
 from security.jwt_manager_instance import get_current_user
-
+from fastapi import APIRouter, Depends, HTTPException, status
 router = APIRouter()
 
 
@@ -782,3 +782,31 @@ async def get_movies_by_genre(
     )
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+@router.post("/ratings/", status_code=status.HTTP_201_CREATED)
+async def rate_movie(
+    rating_data: MovieRatingCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(MovieRating).where(
+            MovieRating.user_id == user.id,
+            MovieRating.movie_id == rating_data.movie_id,
+        )
+    )
+    existing_rating = result.scalar_one_or_none()
+
+    if existing_rating:
+        raise HTTPException(status_code=400, detail="You have already rated this movie")
+    else:
+        new_rating = MovieRating(
+            user_id=user.id,
+            movie_id=rating_data.movie_id,
+            rating=rating_data.rating,
+        )
+        db.add(new_rating)
+
+    await db.commit()
+    return {"movie_id": rating_data.movie_id, "rating": rating_data.rating}

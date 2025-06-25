@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Optional, List, Literal
 from pydantic import UUID4
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, conint
 from fastapi import Query
 
 from database.models.movies import MovieStatusEnum
@@ -313,3 +313,8 @@ class GenreWithCountOut(BaseModel):
     id: int
     name: str
     movie_count: int
+
+
+class MovieRatingCreate(BaseModel):
+    movie_id: int
+    rating: conint(ge=1, le=10)
