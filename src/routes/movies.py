@@ -1,5 +1,5 @@
 from typing import Optional
-from sqlalchemy import desc, asc
+from sqlalchemy import desc, asc, update
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
@@ -20,7 +20,7 @@ from database.models.movies import (
     MovieLike,
     Comment,
     MoviesGenresModel,
-    FavoriteMovie, MovieRating,
+    FavoriteMovie, MovieRating, Notification, CommentLike,
 )
 from schemas import (
     MovieListResponseSchema,
@@ -45,6 +45,51 @@ from sqlalchemy.orm import selectinload
 
 from security.jwt_manager_instance import get_current_user
 from fastapi import APIRouter, Depends, HTTPException, status
+
+from services.comments import create_reply, like_comment
+
+# async def create_reply(comment_id: int, content: str, user: User, db: AsyncSession):
+#     comment = await db.get(Comment, comment_id)
+#     if not comment:
+#         raise HTTPException(status_code=404, detail="Comment not found")
+#
+#     reply = Comment(
+#         content=content,
+#         user_id=user.id,
+#         parent_id=comment.id,
+#         movie_id=comment.movie_id
+#     )
+#     db.add(reply)
+#
+#     if comment.user_id != user.id:
+#         notification = Notification(
+#             recipient_id=comment.user_id,
+#             message=f"User {user} replied to your movie comment.",
+#         )
+#         db.add(notification)
+#
+#     await db.commit()
+#     return reply
+#
+#
+# async def like_comment(comment_id: int, user: User, db: AsyncSession):
+#     comment = await db.get(Comment, comment_id)
+#     if not comment:
+#         raise HTTPException(status_code=404, detail="Comment not found")
+#
+#     like = CommentLike(user_id=user.id, comment_id=comment_id)
+#     db.add(like)
+#
+#     if comment.user_id != user.id:
+#         notification = Notification(
+#             recipient_id=comment.user_id,
+#             message=f"User {user} liked your comment.",
+#         )
+#         db.add(notification)
+#
+#     await db.commit()
+
+
 router = APIRouter()
 
 
@@ -810,3 +855,41 @@ async def rate_movie(
 
     await db.commit()
     return {"movie_id": rating_data.movie_id, "rating": rating_data.rating}
+
+
+@router.get("/notifications/", response_model=list[str])
+async def get_notifications(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Notification).where(Notification.recipient_id == user.id).order_by(Notification.created_at.desc())
+    )
+    return [n.message for n in result.scalars().all()]
+
+
+@router.post("/notifications/mark-read/")
+async def mark_notifications_as_read(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    await db.execute(
+        update(Notification)
+        .where(Notification.recipient_id == user.id, Notification.is_read == False)
+        .values(is_read=True)
+    )
+    await db.commit()
+    return {"detail": "Notifications read"}
+
+@router.post("/comments/{comment_id}/reply")
+async def reply_to_comment(
+    comment_id: int,
+    content: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    reply = await create_reply(comment_id, content, user, db)
+    return reply
+
+@router.post("/comments/{comment_id}/like")
+async def like_comment_endpoint(
+    comment_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    await like_comment(comment_id, user, db)
+    return {"detail": "Comment liked"}

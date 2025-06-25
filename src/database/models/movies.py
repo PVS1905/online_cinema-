@@ -252,6 +252,8 @@ class Comment(Base):
 
     user = relationship("User", back_populates="comments")
     movie = relationship("MovieModel", back_populates="comments")
+    likes = relationship("CommentLike", back_populates="comment", cascade="all, delete-orphan")
+    parent_id = Column(Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=True)
 
 
 class FavoriteMovie(Base):
@@ -282,4 +284,31 @@ class MovieRating(Base):
 
     __table_args__ = (
         UniqueConstraint("user_id", "movie_id", name="unique_user_movie_rating"),
+    )
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    recipient_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    message: Mapped[str]
+    is_read: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    recipient: Mapped["User"] = relationship(back_populates="notifications")
+
+
+class CommentLike(Base):
+    __tablename__ = "comment_likes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    comment_id: Mapped[int] = mapped_column(ForeignKey("comments.id", ondelete="CASCADE"), nullable=False)
+
+    user: Mapped["User"] = relationship("User", back_populates="comment_likes")
+    comment: Mapped["Comment"] = relationship("Comment", back_populates="likes")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "comment_id", name="unique_comment_like"),
     )

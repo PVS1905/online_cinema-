@@ -22,7 +22,7 @@ from sqlalchemy.orm import (
 )
 
 from database import Base
-from database.models.movies import MovieLike, FavoriteMovie
+from database.models.movies import MovieLike, FavoriteMovie, Notification
 from database.validators import accounts as validators
 from security.passwords import hash_password, verify_password
 from security.utils import generate_secure_token
@@ -99,11 +99,11 @@ class User(Base):
     )
 
     comments = relationship("Comment", back_populates="user", cascade="all, delete-orphan")
-
     favorite_movies: Mapped[list["FavoriteMovie"]] = relationship("FavoriteMovie", back_populates="user",
                                                                   cascade="all, delete-orphan")
-
     movie_ratings = relationship("MovieRating", back_populates="user")
+    notifications: Mapped[list["Notification"]] = relationship(back_populates="recipient", cascade="all, delete")
+    comment_likes = relationship("CommentLike", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, is_active={self.is_active})>"
