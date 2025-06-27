@@ -6,9 +6,9 @@ class BaseEmailPasswordSchema(BaseModel):
     email: EmailStr
     password: str
 
-    model_config = {
-        "from_attributes": True
-    }
+    class Config:
+        from_attributes = True
+
 
     @field_validator("email")
     @classmethod
@@ -47,9 +47,9 @@ class UserRegistrationResponseSchema(BaseModel):
     id: int
     email: EmailStr
 
-    model_config = {
-        "from_attributes": True
-    }
+    class Config:
+        from_attributes = True
+
 
 
 class UserActivationRequestSchema(BaseModel):
@@ -86,7 +86,7 @@ class UserOut(BaseModel):
     group: UserGroupEnum
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ChangeUserGroupSchema(BaseModel):
