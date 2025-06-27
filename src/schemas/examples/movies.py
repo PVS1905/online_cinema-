@@ -55,11 +55,16 @@ genre_schema_example = {
     "name": "Comedy"
 }
 
+genre_schema_create_example = {
+    "name": "Comedy"
+}
 actor_schema_example = {
     "id": 1,
     "name": "JimmyFallon"
 }
-
+actor_schema_create_example = {
+    "name": "JimmyFallon"
+}
 director_schema_example = {
     "id": 1,
     "name": "JimmyDirectors"

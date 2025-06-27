@@ -8,8 +8,6 @@ from database.models.movies import Comment, CommentLike, Notification
 from database.models.accounts import User
 
 
-
-
 async def create_reply(comment_id: int, content: str, user: User, db: AsyncSession):
     comment = await db.get(Comment, comment_id)
     if not comment:

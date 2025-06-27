@@ -1,18 +1,16 @@
 from typing import Optional
-from sqlalchemy import desc, asc, update
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func
+from sqlalchemy import desc, asc, update, select, func, extract
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
-from sqlalchemy import extract
-from database import MovieModel, User
-from database import get_db
 from database import (
+    MovieModel,
+    User,
+    get_db,
     CountryModel,
     GenreModel,
     ActorModel,
-    LanguageModel
+    LanguageModel,
 )
 from database.models.movies import (
     Certification,
@@ -20,7 +18,9 @@ from database.models.movies import (
     MovieLike,
     Comment,
     MoviesGenresModel,
-    FavoriteMovie, MovieRating, Notification, CommentLike,
+    FavoriteMovie,
+    MovieRating,
+    Notification
 )
 from schemas import (
     MovieListResponseSchema,
@@ -38,56 +38,12 @@ from schemas.movies import (
     MovieSearch,
     FavoriteMovieOut,
     FavoriteMovieCreate,
-    GenreWithCountOut, MovieRatingCreate
+    GenreWithCountOut,
+    MovieRatingCreate, CreateGenreSchema, CreateActorSchema
 )
-
 from sqlalchemy.orm import selectinload
-
-from security.jwt_manager_instance import get_current_user
-from fastapi import APIRouter, Depends, HTTPException, status
-
+from security.jwt_manager_instance import get_current_user, require_staff
 from services.comments import create_reply, like_comment
-
-# async def create_reply(comment_id: int, content: str, user: User, db: AsyncSession):
-#     comment = await db.get(Comment, comment_id)
-#     if not comment:
-#         raise HTTPException(status_code=404, detail="Comment not found")
-#
-#     reply = Comment(
-#         content=content,
-#         user_id=user.id,
-#         parent_id=comment.id,
-#         movie_id=comment.movie_id
-#     )
-#     db.add(reply)
-#
-#     if comment.user_id != user.id:
-#         notification = Notification(
-#             recipient_id=comment.user_id,
-#             message=f"User {user} replied to your movie comment.",
-#         )
-#         db.add(notification)
-#
-#     await db.commit()
-#     return reply
-#
-#
-# async def like_comment(comment_id: int, user: User, db: AsyncSession):
-#     comment = await db.get(Comment, comment_id)
-#     if not comment:
-#         raise HTTPException(status_code=404, detail="Comment not found")
-#
-#     like = CommentLike(user_id=user.id, comment_id=comment_id)
-#     db.add(like)
-#
-#     if comment.user_id != user.id:
-#         notification = Notification(
-#             recipient_id=comment.user_id,
-#             message=f"User {user} liked your comment.",
-#         )
-#         db.add(notification)
-#
-#     await db.commit()
 
 
 router = APIRouter()
@@ -209,7 +165,8 @@ async def get_movie_list(
 )
 async def create_movie(
         movie_data: MovieCreateSchema,
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        user: User = Depends(require_staff)
 ) -> MovieDetailSchema:
     """
     Add a new movie to the database.
@@ -222,6 +179,8 @@ async def create_movie(
     :type movie_data: MovieCreateSchema
     :param db: The SQLAlchemy async database session (provided via dependency injection).
     :type db: AsyncSession
+    :param user: The current authenticated user. Must be an Admin or Moderator.
+    :type user: User
 
     :return: The created movie with all details.
     :rtype: MovieDetailSchema
@@ -229,7 +188,9 @@ async def create_movie(
     :raises HTTPException:
         - 409 if a movie with the same name and date already exists.
         - 400 if input data is invalid (e.g., violating a constraint).
+        - 403 if the user does not have permission to create a movie.
     """
+
     existing_stmt = select(MovieModel).where(
         (MovieModel.name == movie_data.name),
         (MovieModel.year == movie_data.year)
@@ -455,6 +416,7 @@ async def get_movie_by_id(
 async def delete_movie(
         movie_id: int,
         db: AsyncSession = Depends(get_db),
+        user: User = Depends(require_staff),
 ):
     """
     Delete a specific movie by its ID.
@@ -519,6 +481,7 @@ async def update_movie(
         movie_id: int,
         movie_data: MovieUpdateSchema,
         db: AsyncSession = Depends(get_db),
+        user: User = Depends(require_staff),
 ):
     """
     Update a specific movie by its ID.
@@ -793,7 +756,10 @@ async def remove_favorite(
 
 
 @router.get("/genres/", response_model=list[GenreWithCountOut])
-async def list_genres_with_counts(db: AsyncSession = Depends(get_db)):
+async def list_genres_with_counts(
+        db: AsyncSession = Depends(get_db),
+        user: User = Depends(require_staff),
+):
     stmt = (
         select(
             GenreModel.id,
@@ -869,11 +835,12 @@ async def get_notifications(user: User = Depends(get_current_user), db: AsyncSes
 async def mark_notifications_as_read(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     await db.execute(
         update(Notification)
-        .where(Notification.recipient_id == user.id, Notification.is_read == False)
+        .where(Notification.recipient_id == user.id, Notification.is_read is False)
         .values(is_read=True)
     )
     await db.commit()
     return {"detail": "Notifications read"}
+
 
 @router.post("/comments/{comment_id}/reply")
 async def reply_to_comment(
@@ -885,6 +852,7 @@ async def reply_to_comment(
     reply = await create_reply(comment_id, content, user, db)
     return reply
 
+
 @router.post("/comments/{comment_id}/like")
 async def like_comment_endpoint(
     comment_id: int,
@@ -893,3 +861,49 @@ async def like_comment_endpoint(
 ):
     await like_comment(comment_id, user, db)
     return {"detail": "Comment liked"}
+
+
+@router.post("/create_genre/", status_code=status.HTTP_201_CREATED)
+async def create_genre(
+        genre_data: CreateGenreSchema,
+        db: AsyncSession = Depends(get_db),
+        user: User = Depends(require_staff),
+):
+
+    result = await db.execute(
+        select(GenreModel).where(GenreModel.name == genre_data.name)
+    )
+    existing_genre = result.scalar_one_or_none()
+
+    if existing_genre:
+        raise HTTPException(status_code=400, detail="Genre with this name already exists")
+
+    new_genre = GenreModel(name=genre_data.name)
+    db.add(new_genre)
+    await db.commit()
+    await db.refresh(new_genre)
+
+    return new_genre
+
+
+@router.post("/create_actor/", status_code=status.HTTP_201_CREATED)
+async def create_actor(
+        actor_data: CreateActorSchema,
+        db: AsyncSession = Depends(get_db),
+        user: User = Depends(require_staff),
+):
+
+    result = await db.execute(
+        select(ActorModel).where(ActorModel.name == actor_data.name)
+    )
+    existing_actor = result.scalar_one_or_none()
+
+    if existing_actor:
+        raise HTTPException(status_code=400, detail="Genre with this name already exists")
+
+    new_genre = ActorModel(name=actor_data.name)
+    db.add(new_genre)
+    await db.commit()
+    await db.refresh(new_genre)
+
+    return new_genre

@@ -1,8 +1,6 @@
 from datetime import datetime, timezone
-from typing import cast
-
+from typing import cast, List
 from fastapi import APIRouter, Depends, status, HTTPException
-from keyring import get_password
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,10 +30,11 @@ from schemas import (
     TokenRefreshRequestSchema,
     TokenRefreshResponseSchema
 )
-from schemas.accounts import UserUpdatePasswordRequestSchema
+from schemas.accounts import UserUpdatePasswordRequestSchema, UserOut, ChangeUserGroupSchema
 from security.interfaces import JWTAuthManagerInterface
-from security.passwords import hash_password, verify_password
-from security.jwt_manager_instance import get_current_user
+from security.jwt_manager_instance import get_current_user, require_group
+from sqlalchemy.orm import selectinload
+
 
 router = APIRouter()
 
@@ -634,7 +633,7 @@ async def refresh_access_token(
 async def logout_user(
     token_data: TokenRefreshRequestSchema,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # отримай користувача з access token
+    current_user: User = Depends(get_current_user),
 ):
 
     stmt = select(RefreshToken).filter_by(
@@ -651,61 +650,6 @@ async def logout_user(
     await db.commit()
 
     return MessageResponseSchema(message="User logged out successfully.")
-
-
-# @router.post(
-#     "/change-password/",
-#     response_model=MessageResponseSchema,
-#     summary="Change User Password",
-#     description="Change the password of the current user.",
-#     status_code=status.HTTP_200_OK,
-# )
-# async def update_password(
-#         old_password: str,
-#         new_password: str,
-#         jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
-#         db: AsyncSession = Depends(get_db),
-# ):
-#
-#
-#     stmt = select(User).filter_by(id=user_id)
-#     result = await db.execute(stmt)
-#     user = result.scalars().first()
-#
-#     if not user:
-#         raise HTTPException(status_code=404, detail="User not found.")
-#
-#     # Перевірка старого пароля
-#     if not user.verify_password(old_password):
-#         raise HTTPException(status_code=400, detail="Invalid old password.")
-#
-#     # Хешуємо новий пароль
-#     user.password = hash_password(new_password)
-#
-#     # Зберігаємо зміни
-#     db.add(user)
-#     await db.commit()
-#
-#     return MessageResponseSchema(message="User password updated successfully.")
-#     code_old_password = hash_password(old_password)
-#     if not code_old_password in db:
-#         raise HTTPException(status_code=400, detail="Invalid old password.")
-#
-#
-#     stmt = select(User).filter_by(id=user_id)
-#     result = await db.execute(stmt)
-#     user = result.scalars().first()
-#     if not user.verify_password(old_password):
-#         raise HTTPException(status_code=400, detail="Invalid old password.")
-#
-#
-#
-#     user.password = new_password
-#
-#     await db.refresh(user)
-#     await db.commit()
-#
-#     return MessageResponseSchema(message="User update password successfully.")
 
 
 @router.patch(
@@ -729,3 +673,51 @@ async def update_password(
     await db.refresh(current_user)
 
     return MessageResponseSchema(message="User update password successfully.")
+
+
+@router.get("/users/", response_model=List[UserOut])
+async def list_users(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_group([UserGroupEnum.ADMIN]))
+):
+    result = await db.execute(select(User).options(selectinload(User.group)))
+    return result.scalars().all()
+
+
+@router.patch("/users/{user_id}/activate", response_model=UserOut)
+async def activate_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_group([UserGroupEnum.ADMIN]))
+):
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_active = True
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+@router.patch("/users/{user_id}/group", response_model=UserOut)
+async def change_user_group(
+    user_id: int,
+    group_data: ChangeUserGroupSchema,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_group([UserGroupEnum.ADMIN]))
+):
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    stmt = select(UserGroup).where(UserGroup.name == group_data.group)
+    result = await db.execute(stmt)
+    group = result.scalars().first()
+    if not group:
+        raise HTTPException(status_code=400, detail="Group not found")
+
+    user.group_id = group.id
+    await db.commit()
+    await db.refresh(user)
+    return user

@@ -1,7 +1,6 @@
 from datetime import date, datetime
 from typing import Optional, List, Literal
-from pydantic import UUID4
-from pydantic import BaseModel, Field, field_validator, conint
+from pydantic import UUID4, BaseModel, Field, field_validator, conint
 from fastapi import Query
 
 from database.models.movies import MovieStatusEnum
@@ -14,7 +13,7 @@ from schemas.examples.movies import (
     movie_list_response_schema_example,
     movie_create_schema_example,
     movie_detail_schema_example,
-    movie_update_schema_example, director_schema_example
+    movie_update_schema_example, director_schema_example, genre_schema_create_example, actor_schema_create_example
 )
 
 
@@ -61,6 +60,18 @@ class GenreSchema(BaseModel):
     }
 
 
+class CreateGenreSchema(BaseModel):
+    name: str
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [
+                genre_schema_create_example
+            ]
+        }
+    }
+
+
 class ActorSchema(BaseModel):
     id: int
     name: str
@@ -70,6 +81,19 @@ class ActorSchema(BaseModel):
         "json_schema_extra": {
             "examples": [
                 actor_schema_example
+            ]
+        }
+    }
+
+
+class CreateActorSchema(BaseModel):
+    name: str
+
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [
+                actor_schema_create_example
             ]
         }
     }
