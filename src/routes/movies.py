@@ -896,6 +896,7 @@ async def create_actor(
     result = await db.execute(
         select(ActorModel).where(ActorModel.name == actor_data.name)
     )
+
     existing_actor = result.scalar_one_or_none()
 
     if existing_actor:
