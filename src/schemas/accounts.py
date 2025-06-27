@@ -1,0 +1,93 @@
+from pydantic import BaseModel, EmailStr, field_validator
+from database import accounts_validators, UserGroupEnum
+
+
+class BaseEmailPasswordSchema(BaseModel):
+    email: EmailStr
+    password: str
+
+    class Config:
+        from_attributes = True
+
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value):
+        return value.lower()
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value):
+        return accounts_validators.validate_password_strength(value)
+
+
+class UserRegistrationRequestSchema(BaseEmailPasswordSchema):
+    pass
+
+
+class PasswordResetRequestSchema(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetCompleteRequestSchema(BaseEmailPasswordSchema):
+    token: str
+
+
+class UserLoginRequestSchema(BaseEmailPasswordSchema):
+    pass
+
+
+class UserLoginResponseSchema(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+class UserRegistrationResponseSchema(BaseModel):
+    id: int
+    email: EmailStr
+
+    class Config:
+        from_attributes = True
+
+
+
+class UserActivationRequestSchema(BaseModel):
+    email: EmailStr
+    token: str
+
+
+class MessageResponseSchema(BaseModel):
+    message: str
+
+
+class TokenRefreshRequestSchema(BaseModel):
+    refresh_token: str
+
+
+class TokenRefreshResponseSchema(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserUpdatePasswordRequestSchema(BaseModel):
+    old_password: str
+    new_password: str
+
+
+class UserUpdatePasswordResponseSchema(BaseModel):
+    message: str
+
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+    is_active: bool
+    group: UserGroupEnum
+
+    class Config:
+        from_attributes = True
+
+
+class ChangeUserGroupSchema(BaseModel):
+    group: UserGroupEnum
